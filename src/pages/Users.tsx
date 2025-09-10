@@ -1,10 +1,120 @@
+import { useEffect, useMemo, useState } from "react";
+import api from "../api/axios";
+import { User } from "../types";
 import UserForm from "../components/UserForm";
+import Toast from "../components/Toast";
 
 export default function Users() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [editing, setEditing] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<{ kind: "success" | "error" | "info"; msg: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await api.get<User[]>("/users");
+        if (!alive) return;
+        setUsers(res.data);
+      } catch {
+        setToast({ kind: "error", msg: "Data fetch failed" });
+      } finally {
+        setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const sorted = useMemo(() => [...users].sort((a, b) => a.id - b.id), [users]);
+
+  const handleCreate = async (payload: Omit<User, "id">) => {
+    const res = await api.post<User>("/users", payload);
+    const newUser = { ...res.data, id: users.length ? Math.max(...users.map((u) => u.id)) + 1 : 1 };
+    setUsers((prev) => [...prev, newUser]);
+    setToast({ kind: "success", msg: "User created" });
+  };
+
+  const handleUpdate = async (id: number, payload: Partial<User>) => {
+    await api.put(`/users/${id}`, payload);
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...payload } : u)));
+    setEditing(null);
+    setToast({ kind: "success", msg: "User updated" });
+  };
+
+  const handleDelete = async (id: number) => {
+    const ok = window.confirm("Delete this user?");
+    if (!ok) return;
+    await api.delete(`/users/${id}`);
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    setToast({ kind: "success", msg: "User deleted" });
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
-      <h2 className="text-3xl font-semibold mb-4">Users Page</h2>
-      <UserForm />
+    <div className="p-4 min-h-screen">
+      {toast && <Toast kind={toast.kind as any} message={toast.msg} onClose={() => setToast(null)} />}
+
+      <div className="max-w-4xl mx-auto">
+        <h2 className="text-xl font-bold mb-2">Users</h2>
+
+        <UserForm
+          initial={editing ?? { name: "", username: "", email: "" }}
+          mode={editing ? "edit" : "create"}
+          onSubmit={(data) => (editing ? handleUpdate(editing.id, data) : handleCreate(data as Omit<User, "id">))}
+          onCancel={() => setEditing(null)}
+        />
+
+        <hr className="my-4" />
+
+        {loading ? (
+          <div className="text-gray-600">Loading...</div>
+        ) : sorted.length === 0 ? (
+          <div className="text-gray-600 border rounded p-4">No users</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-[720px] w-full border rounded">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="text-left p-2 border">ID</th>
+                  <th className="text-left p-2 border">Name</th>
+                  <th className="text-left p-2 border">Username</th>
+                  <th className="text-left p-2 border">Email</th>
+                  <th className="text-left p-2 border">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((u) => (
+                  <tr key={u.id} className="odd:bg-white even:bg-gray-50">
+                    <td className="p-2 border font-medium">#{u.id}</td>
+                    <td className="p-2 border">{u.name}</td>
+                    <td className="p-2 border">{u.username}</td>
+                    <td className="p-2 border">{u.email}</td>
+                    <td className="p-2 border">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditing(u)}
+                          className="px-2 py-1 bg-yellow-500 text-white rounded"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(u.id)}
+                          className="px-2 py-1 bg-red-600 text-white rounded"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
