@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
 import { User } from "../types";
-import UserForm from "../components/UserForm";
-import Toast from "../components/Toast";
+import UserForm from "../components/users/UserForm";
+import UserTable from "../components/users/UserTable";
+import Toast from "../components/ui/Toast";
+import Spinner from "../components/ui/Spinner";
 
 export default function Users() {
   const [users, setUsers] = useState<User[]>([]);
@@ -24,9 +26,7 @@ export default function Users() {
         setLoading(false);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   const sorted = useMemo(() => [...users].sort((a, b) => a.id - b.id), [users]);
@@ -46,8 +46,7 @@ export default function Users() {
   };
 
   const handleDelete = async (id: number) => {
-    const ok = window.confirm("Delete this user?");
-    if (!ok) return;
+    if (!window.confirm("Delete this user?")) return;
     await api.delete(`/users/${id}`);
     setUsers((prev) => prev.filter((u) => u.id !== id));
     setToast({ kind: "success", msg: "User deleted" });
@@ -55,7 +54,7 @@ export default function Users() {
 
   return (
     <div className="p-4 min-h-screen">
-      {toast && <Toast kind={toast.kind as any} message={toast.msg} onClose={() => setToast(null)} />}
+      {toast && <Toast kind={toast.kind} message={toast.msg} onClose={() => setToast(null)} />}
 
       <div className="max-w-4xl mx-auto">
         <h2 className="text-xl font-bold mb-2">Users</h2>
@@ -63,56 +62,19 @@ export default function Users() {
         <UserForm
           initial={editing ?? { name: "", username: "", email: "" }}
           mode={editing ? "edit" : "create"}
-          onSubmit={(data) => (editing ? handleUpdate(editing.id, data) : handleCreate(data as Omit<User, "id">))}
+          onSubmit={(data) => (editing
+            ? handleUpdate(editing.id, data as Partial<User>)
+            : handleCreate(data as Omit<User, "id">)
+          )}
           onCancel={() => setEditing(null)}
         />
 
         <hr className="my-4" />
 
         {loading ? (
-          <div className="text-gray-600">Loading...</div>
-        ) : sorted.length === 0 ? (
-          <div className="text-gray-600 border rounded p-4">No users</div>
+          <div className="flex items-center gap-3 text-gray-600"><Spinner /> Loading...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-[720px] w-full border rounded">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="text-left p-2 border">ID</th>
-                  <th className="text-left p-2 border">Name</th>
-                  <th className="text-left p-2 border">Username</th>
-                  <th className="text-left p-2 border">Email</th>
-                  <th className="text-left p-2 border">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((u) => (
-                  <tr key={u.id} className="odd:bg-white even:bg-gray-50">
-                    <td className="p-2 border font-medium">#{u.id}</td>
-                    <td className="p-2 border">{u.name}</td>
-                    <td className="p-2 border">{u.username}</td>
-                    <td className="p-2 border">{u.email}</td>
-                    <td className="p-2 border">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setEditing(u)}
-                          className="px-2 py-1 bg-yellow-500 text-white rounded"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(u.id)}
-                          className="px-2 py-1 bg-red-600 text-white rounded"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <UserTable users={sorted} onEdit={setEditing} onDelete={handleDelete} />
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { User } from "../types";
+import { User } from "../../types";
 
 type Props = {
   initial: Partial<User>;
@@ -22,9 +22,19 @@ export default function UserForm({ initial, mode, onSubmit, onCancel }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !username.trim() || !email.trim()) return;
+    const n = name.trim();
+    const u = username.trim();
+    const m = email.trim();
+    if (!n || !u || !m) return;
+
     setSubmitting(true);
-    onSubmit({ name: name.trim(), username: username.trim(), email: email.trim() } as any);
+    if (mode === "create") {
+      const payload: Omit<User, "id"> = { name: n, username: u, email: m };
+      onSubmit(payload);
+    } else {
+      const payload: Partial<User> = { name: n, username: u, email: m };
+      onSubmit(payload);
+    }
     setSubmitting(false);
   };
 
